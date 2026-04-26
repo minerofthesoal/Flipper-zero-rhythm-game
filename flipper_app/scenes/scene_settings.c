@@ -43,6 +43,13 @@ static void vibrate_changed(VariableItem* item) {
     variable_item_set_current_value_text(item, app->vibrate ? "On" : "Off");
 }
 
+static void rgb_changed(VariableItem* item) {
+    PulseApp* app = variable_item_get_context(item);
+    uint8_t idx = variable_item_get_current_value_index(item);
+    app->rgb_enabled = idx != 0;
+    variable_item_set_current_value_text(item, app->rgb_enabled ? "On" : "Off");
+}
+
 void pulse_scene_Settings_on_enter(void* ctx) {
     PulseApp* app = ctx;
     VariableItemList* l = app->var_list;
@@ -77,6 +84,11 @@ void pulse_scene_Settings_on_enter(void* ctx) {
     it = variable_item_list_add(l, "Vibrate", 2, vibrate_changed, app);
     variable_item_set_current_value_index(it, app->vibrate ? 1 : 0);
     variable_item_set_current_value_text(it, app->vibrate ? "On" : "Off");
+
+    /* RGB LED feedback (handy on Flipper RGB-mod hardware; harmless on stock) */
+    it = variable_item_list_add(l, "RGB LED", 2, rgb_changed, app);
+    variable_item_set_current_value_index(it, app->rgb_enabled ? 1 : 0);
+    variable_item_set_current_value_text(it, app->rgb_enabled ? "On" : "Off");
 
     view_dispatcher_switch_to_view(app->view_dispatcher, PulseViewVarList);
 }

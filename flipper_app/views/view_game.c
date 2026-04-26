@@ -7,12 +7,14 @@
 /* ------- model ----------------------------------------------------------- */
 
 #define LANE_COUNT     4
+#define LANE_W         12
+#define LANE_X0        12      /* 4 lanes × 12 = 48 → x=12..60, leaves 64..127 for HUD */
 #define RECEPTOR_Y     54
-#define LANE_W         16
-#define LANE_X0        32      /* 4 lanes × 16 = 64, centered: 32..96 */
+#define LANE_TOP_Y     14
 #define HIT_WINDOW_GREAT 50    /* ms */
 #define HIT_WINDOW_GOOD  100   /* ms */
 #define HIT_WINDOW_MISS  140   /* late = miss */
+#define GAUGE_PASS     65      /* gauge ≥ this at song end = pass */
 
 /* Lane button mapping.
  *   lane 0 = Left, 1 = Up, 2 = Down, 3 = Right
@@ -27,7 +29,9 @@ typedef struct {
     AudioEngine*    audio;
     CharacterState* character;
     VgmDisplay*     vgm;
-    NotificationApp* haptics;
+    NotificationApp* notify;
+    bool            vibrate;
+    bool            rgb;
 
     bool            running;
     bool            paused;
@@ -61,150 +65,192 @@ struct GameView {
 
 static uint32_t now_ms(void) { return furi_get_tick(); }
 
-static int lane_x(uint8_t lane) {
-    return LANE_X0 + lane * LANE_W;
-}
-
 static int lane_apply_mods(int lane, AnomalyMod mod) {
     if(mod == AnomalyModMirror) return LANE_COUNT - 1 - lane;
     if(mod == AnomalyModInvert) return (lane ^ 1); /* swap up/down, left/right */
     return lane;
 }
 
-static const char* note_glyph(NoteType t) {
-    switch(t) {
-        case NoteTap:   return "T";
-        case NoteHold:  return "H";
-        case NoteBurst: return "B";
-        case NoteSlide: return "S";
-        case NoteFake:  return "?";
-        case NoteChain: return ".";
-    }
-    return "?";
+/* ------- draw ------------------------------------------------------------ */
+
+static const char* lane_letter(int lane) {
+    static const char* k[LANE_COUNT] = {"L", "U", "D", "R"};
+    return k[lane];
 }
 
-/* ------- draw ------------------------------------------------------------ */
+static void draw_gauge(Canvas* c, int gauge) {
+    /* Wide horizontal Succession Gauge on the right column so it's actually
+     * legible. Frame: x=66..125, y=14..58 (44 tall). Fills bottom-up. */
+    const int gx = 66, gy = 14, gw = 14, gh = 44;
+    canvas_set_color(c, ColorBlack);
+    canvas_draw_str(c, gx + 1, gy - 2, "GAUGE");
+    canvas_draw_frame(c, gx, gy, gw, gh);
+    if(gauge < 0) gauge = 0; if(gauge > 100) gauge = 100;
+    int fill = (gauge * (gh - 2)) / 100;
+    if(fill > 0) canvas_draw_box(c, gx + 1, gy + (gh - 1) - fill, gw - 2, fill);
+    /* Pass-line marker (65%): little notch on the right edge. */
+    int pass_y = gy + gh - 1 - ((GAUGE_PASS * (gh - 2)) / 100);
+    canvas_draw_line(c, gx + gw, pass_y, gx + gw + 2, pass_y);
+}
+
+static void draw_hud(Canvas* c, GameModel* m) {
+    char buf[24];
+    canvas_set_font(c, FontSecondary);
+    canvas_set_color(c, ColorBlack);
+    /* Score line — left of HUD column. */
+    snprintf(buf, sizeof(buf), "%06lu", (unsigned long)m->judge->score);
+    canvas_draw_str(c, 0, 8, buf);
+    /* Combo — right side, big, only when meaningful. */
+    if(m->judge->combo > 0) {
+        snprintf(buf, sizeof(buf), "x%u", (unsigned)m->judge->combo);
+        canvas_set_font(c, FontPrimary);
+        canvas_draw_str_aligned(c, 127, 9, AlignRight, AlignBottom, buf);
+        canvas_set_font(c, FontSecondary);
+    }
+    /* Anomaly mod tag, when active, between gauge label and combo. */
+    if(m->active_mod != AnomalyModNone) {
+        canvas_draw_str(c, 86, 8, anomaly_mod_name(m->active_mod));
+    }
+}
+
+static void draw_lanes(Canvas* c, GameModel* m) {
+    canvas_set_color(c, ColorBlack);
+    /* Lane separators. */
+    for(int i = 0; i <= LANE_COUNT; i++) {
+        int x = LANE_X0 + i * LANE_W;
+        canvas_draw_line(c, x, LANE_TOP_Y, x, RECEPTOR_Y + 4);
+    }
+    /* Receptor row + lane-letter labels. */
+    canvas_draw_line(c, LANE_X0, RECEPTOR_Y, LANE_X0 + LANE_COUNT * LANE_W, RECEPTOR_Y);
+    canvas_set_font(c, FontSecondary);
+    for(int i = 0; i < LANE_COUNT; i++) {
+        int cx = LANE_X0 + i * LANE_W + LANE_W / 2;
+        if(m->held[i]) {
+            canvas_draw_disc(c, cx, RECEPTOR_Y, 4);
+        } else {
+            canvas_draw_circle(c, cx, RECEPTOR_Y, 4);
+        }
+        canvas_draw_str_aligned(c, cx, 63, AlignCenter, AlignBottom, lane_letter(i));
+    }
+}
+
+static void draw_notes(Canvas* c, GameModel* m, uint32_t t, int speed) {
+    uint32_t lookahead_ms = (RECEPTOR_Y - LANE_TOP_Y) * 1000u / (speed * 4);
+    const Note* notes = m->diff->notes;
+    uint32_t n = m->diff->note_count;
+    canvas_set_color(c, ColorBlack);
+    for(uint32_t i = 0; i < n; i++) {
+        const Note* nt = &notes[i];
+        if(nt->time_ms + 200 < t) continue;
+        if(nt->time_ms > t + lookahead_ms) break;
+
+        int dt   = (int)nt->time_ms - (int)t;
+        int y    = RECEPTOR_Y - (dt * speed * 4) / 1000;
+        int lane = lane_apply_mods(nt->lane, m->active_mod);
+        int cx   = LANE_X0 + lane * LANE_W + LANE_W / 2;
+
+        switch(nt->type) {
+        case NoteHold: {
+            int dur = nt->arg;
+            int yy  = y - (dur * speed * 4) / 1000;
+            canvas_draw_rframe(c, cx - 3, yy, 7, y - yy + 1, 1);
+            canvas_draw_box(c, cx - 1, yy + 1, 3, y - yy - 1);
+            break;
+        }
+        case NoteChain:
+            canvas_draw_box(c, cx - 1, y - 1, 3, 3);
+            break;
+        case NoteFake:
+            /* hollow with X — penalty if pressed */
+            canvas_draw_circle(c, cx, y, 3);
+            canvas_draw_line(c, cx - 2, y - 2, cx + 2, y + 2);
+            canvas_draw_line(c, cx - 2, y + 2, cx + 2, y - 2);
+            break;
+        case NoteBurst: {
+            /* stacked discs to suggest tap-tap-tap */
+            canvas_draw_disc(c, cx, y, 3);
+            canvas_draw_circle(c, cx, y - 5, 2);
+            canvas_draw_circle(c, cx, y - 9, 2);
+            break;
+        }
+        case NoteSlide:
+            canvas_draw_disc(c, cx, y, 3);
+            canvas_draw_line(c, cx - 4, y, cx + 4, y);
+            break;
+        case NoteTap:
+        default:
+            canvas_draw_disc(c, cx, y, 3);
+            break;
+        }
+    }
+}
+
+static void draw_judgment_flash(Canvas* c, GameModel* m) {
+    if(m->last_result_until_ms <= now_ms()) return;
+    const char* s = NULL;
+    switch(m->last_result) {
+        case JudgePerfect: s = "PERFECT"; break;
+        case JudgeGreat:   s = "GREAT";   break;
+        case JudgeGood:    s = "GOOD";    break;
+        case JudgeMiss:    s = "MISS";    break;
+        case JudgeNone:    return;
+    }
+    if(!s) return;
+    canvas_set_color(c, ColorBlack);
+    canvas_set_font(c, FontPrimary);
+    /* Centered above the receptor row inside the lane area. */
+    canvas_draw_str_aligned(c, LANE_X0 + (LANE_COUNT * LANE_W) / 2, 32,
+                            AlignCenter, AlignCenter, s);
+}
 
 static void game_draw(Canvas* c, void* model) {
     GameModel* m = model;
     if(m->splash) { m->splash(c, m); return; }
 
     canvas_clear(c);
-    canvas_set_color(c, ColorBlack);
 
-    /* Top bar: combo / score / gauge */
-    char buf[32];
-    canvas_set_font(c, FontSecondary);
-    snprintf(buf, sizeof(buf), "%lu", (unsigned long)m->judge->score);
-    canvas_draw_str(c, 2, 8, buf);
-    snprintf(buf, sizeof(buf), "x%u", (unsigned)m->judge->combo);
-    canvas_draw_str(c, 96, 8, buf);
-
-    /* Succession Gauge — vertical bar on the right edge */
-    int gauge = m->anomaly->gauge; /* 0..100 */
-    canvas_draw_frame(c, 124, 12, 4, 40);
-    int fill = (gauge * 40) / 100;
-    canvas_draw_box(c, 124, 12 + (40 - fill), 4, fill);
-
-    /* Anomaly indicator */
-    if(m->active_mod != AnomalyModNone) {
-        canvas_draw_str(c, 50, 8, anomaly_mod_name(m->active_mod));
-    }
-
-    /* Lanes */
-    for(int i = 0; i < LANE_COUNT; i++) {
-        int x = lane_x(i);
-        canvas_draw_line(c, x, 12, x, 60);
-    }
-    canvas_draw_line(c, lane_x(LANE_COUNT), 12, lane_x(LANE_COUNT), 60);
-
-    /* Receptor row */
-    canvas_draw_line(c, LANE_X0, RECEPTOR_Y, LANE_X0 + LANE_COUNT * LANE_W, RECEPTOR_Y);
-    for(int i = 0; i < LANE_COUNT; i++) {
-        int x = lane_x(i) + LANE_W / 2;
-        if(m->held[i]) canvas_draw_disc(c, x, RECEPTOR_Y, 3);
-        else           canvas_draw_circle(c, x, RECEPTOR_Y, 3);
-    }
+    draw_hud(c, m);
+    draw_gauge(c, m->anomaly ? m->anomaly->gauge : 0);
+    draw_lanes(c, m);
 
     if(!m->running) {
+        canvas_set_color(c, ColorBlack);
         canvas_set_font(c, FontPrimary);
-        canvas_draw_str_aligned(c, 64, 32, AlignCenter, AlignCenter, "READY");
+        canvas_draw_str_aligned(c, LANE_X0 + (LANE_COUNT * LANE_W) / 2, 32,
+                                AlignCenter, AlignCenter, "READY");
         return;
     }
 
-    /* Compute current chart time using signed math — during the lead-in
-     * t_signed is negative, and an unsigned subtraction would wrap. */
     int64_t t_signed = (int64_t)now_ms() - (int64_t)m->start_tick_ms
                        + (int64_t)m->offset_ms;
     if(t_signed < 0) {
-        /* Lead-in countdown: show "3 / 2 / 1 / GO" big in the middle. */
         int64_t remain = -t_signed;
         const char* lbl = "GO";
         if(remain > 2000)      lbl = "3";
         else if(remain > 1000) lbl = "2";
         else if(remain > 250)  lbl = "1";
+        canvas_set_color(c, ColorBlack);
         canvas_set_font(c, FontPrimary);
-        canvas_draw_str_aligned(c, 64, 32, AlignCenter, AlignCenter, lbl);
+        canvas_draw_str_aligned(c, LANE_X0 + (LANE_COUNT * LANE_W) / 2, 32,
+                                AlignCenter, AlignCenter, lbl);
         return;
     }
-    uint32_t t  = (uint32_t)t_signed;
-    int speed   = m->scroll_speed;
+
+    uint32_t t = (uint32_t)t_signed;
+    int speed = m->scroll_speed;
     if(m->active_mod == AnomalyModSpeed) speed = (speed * m->active_mod_arg) / 100;
     if(speed < 1) speed = 1;
 
-    /* Note rendering window. The * 4 factor (was * 30) gives a calmer
-     * scroll: at speed=10 a note takes ~1s to travel from the top to the
-     * receptor, instead of ~140ms. */
-    uint32_t lookahead_ms = (RECEPTOR_Y - 12) * 1000u / (speed * 4);
-    /* Walk active notes for the difficulty */
-    const Note* notes = m->diff->notes;
-    uint32_t n = m->diff->note_count;
-    for(uint32_t i = 0; i < n; i++) {
-        const Note* nt = &notes[i];
-        if(nt->time_ms + 200 < t) continue; /* fully past */
-        if(nt->time_ms > t + lookahead_ms) break;
+    draw_notes(c, m, t, speed);
+    draw_judgment_flash(c, m);
 
-        int dt   = (int)nt->time_ms - (int)t;
-        int y    = RECEPTOR_Y - (dt * speed * 4) / 1000;
-        int lane = lane_apply_mods(nt->lane, m->active_mod);
-        int x    = lane_x(lane) + LANE_W / 2;
-
-        if(nt->type == NoteFake)  canvas_set_color(c, ColorXOR);
-        if(nt->type == NoteHold) {
-            int dur = nt->arg;
-            int yy  = y - (dur * speed * 4) / 1000;
-            canvas_draw_box(c, x - 2, yy, 4, y - yy);
-        } else if(nt->type == NoteChain) {
-            canvas_draw_dot(c, x, y);
-        } else {
-            canvas_draw_disc(c, x, y, 3);
-        }
+    if(m->paused) {
         canvas_set_color(c, ColorBlack);
-
-        /* glyph for non-tap to hint mechanic */
-        if(nt->type != NoteTap && nt->type != NoteChain && nt->type != NoteHold) {
-            canvas_draw_str(c, x - 2, y + 8, note_glyph(nt->type));
-        }
-    }
-
-    /* Last judgement flash */
-    if(m->last_result_until_ms > now_ms()) {
         canvas_set_font(c, FontPrimary);
-        const char* s = "";
-        switch(m->last_result) {
-            case JudgePerfect: s = "PERFECT"; break;
-            case JudgeGreat:   s = "GREAT";   break;
-            case JudgeGood:    s = "GOOD";    break;
-            case JudgeMiss:    s = "MISS";    break;
-            case JudgeNone:    break;
-        }
-        canvas_draw_str_aligned(c, 64, 30, AlignCenter, AlignCenter, s);
+        canvas_draw_str_aligned(c, 64, 32, AlignCenter, AlignCenter, "PAUSED");
     }
 
-    /* Full-screen flash for FX */
-    if(m->flash_until_ms > now_ms()) {
-        canvas_invert_color(c);
-    }
+    if(m->flash_until_ms > now_ms()) canvas_invert_color(c);
 }
 
 /* ------- input ----------------------------------------------------------- */
@@ -261,9 +307,20 @@ static bool game_input(InputEvent* e, void* ctx) {
                             m->last_result = r;
                             m->last_result_until_ms = now_ms() + 250;
                             anomaly_on_judge(m->anomaly, r, m->character);
-                            audio_click(m->audio, r);
-                            if(m->haptics && r == JudgePerfect) {
-                                notification_message(m->haptics, &sequence_blink_blue_10);
+                            audio_click(m->audio, r, m->judge->last_hit_type);
+                            if(m->notify && m->vibrate && r == JudgePerfect) {
+                                notification_message(m->notify, &sequence_single_vibro);
+                            }
+                            if(m->notify && m->rgb) {
+                                const NotificationSequence* seq = NULL;
+                                switch(r) {
+                                    case JudgePerfect: seq = &sequence_blink_blue_10;  break;
+                                    case JudgeGreat:   seq = &sequence_blink_green_10; break;
+                                    case JudgeGood:    seq = &sequence_blink_yellow_10;break;
+                                    case JudgeMiss:    seq = &sequence_blink_red_10;   break;
+                                    case JudgeNone:    break;
+                                }
+                                if(seq) notification_message(m->notify, seq);
                             }
                         }
                         consumed = true;
@@ -375,7 +432,7 @@ void game_view_start(
     GameView* v, Chart* chart, const ChartDiff* diff, Judge* judge,
     AnomalyState* anomaly, AudioEngine* audio, CharacterState* character,
     int16_t offset_ms, uint8_t scroll_speed,
-    VgmDisplay* vgm, NotificationApp* haptics) {
+    VgmDisplay* vgm, NotificationApp* notify, bool vibrate, bool rgb) {
 
     with_view_model(v->view, GameModel * m, {
         memset(m, 0, sizeof(*m));
@@ -386,7 +443,9 @@ void game_view_start(
         m->audio = audio;
         m->character = character;
         m->vgm = vgm;
-        m->haptics = haptics;
+        m->notify = notify;
+        m->vibrate = vibrate;
+        m->rgb = rgb;
         m->offset_ms = offset_ms;
         m->scroll_speed = scroll_speed;
         m->start_tick_ms = now_ms() + 1500; /* 1.5s lead-in */
