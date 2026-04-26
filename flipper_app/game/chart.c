@@ -1,5 +1,4 @@
 #include "chart.h"
-#include "../songs/builtin_songs.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -75,11 +74,7 @@ static EventType parse_event_type(const char* s) {
 /* ----------- line streaming --------------------------------------------- */
 
 typedef struct {
-    /* one of these is non-null */
-    File*       file;
-    const char* mem;
-    size_t      mem_len;
-    size_t      mem_pos;
+    File* file;
 } LineSource;
 
 static bool ls_open_file(LineSource* ls, Storage* st, const char* path) {
@@ -92,12 +87,6 @@ static bool ls_open_file(LineSource* ls, Storage* st, const char* path) {
     return true;
 }
 
-static void ls_open_mem(LineSource* ls, const char* data, size_t len) {
-    memset(ls, 0, sizeof(*ls));
-    ls->mem = data;
-    ls->mem_len = len;
-}
-
 static void ls_close(LineSource* ls) {
     if(ls->file) {
         storage_file_close(ls->file);
@@ -107,24 +96,15 @@ static void ls_close(LineSource* ls) {
 
 static bool ls_read_line(LineSource* ls, char* out, size_t cap) {
     size_t i = 0;
-    if(ls->file) {
-        char ch;
-        for(;;) {
-            uint16_t got = storage_file_read(ls->file, &ch, 1);
-            if(got == 0) {
-                if(i == 0) return false;
-                break;
-            }
-            if(ch == '\n') break;
-            if(i + 1 < cap) out[i++] = ch;
+    char ch;
+    for(;;) {
+        uint16_t got = storage_file_read(ls->file, &ch, 1);
+        if(got == 0) {
+            if(i == 0) return false;
+            break;
         }
-    } else {
-        if(ls->mem_pos >= ls->mem_len) return false;
-        for(; ls->mem_pos < ls->mem_len; ls->mem_pos++) {
-            char ch = ls->mem[ls->mem_pos];
-            if(ch == '\n') { ls->mem_pos++; break; }
-            if(i + 1 < cap) out[i++] = ch;
-        }
+        if(ch == '\n') break;
+        if(i + 1 < cap) out[i++] = ch;
     }
     out[i] = 0;
     rstrip(out);
@@ -340,16 +320,17 @@ bool chart_path_is_builtin(const char* path) {
 Chart* chart_load(Storage* storage, const char* path) {
     LineSource ls;
     Chart* c;
+    char asset_path[96];
     if(chart_path_is_builtin(path)) {
+        /* Built-ins are shipped as fap_file_assets and live on SD card so
+         * the FAP itself stays small enough to load. */
         const char* name = path + 9; /* after "/builtin/" */
-        const char* data; size_t len;
-        if(!builtin_song_lookup(name, &data, &len)) return NULL;
-        ls_open_mem(&ls, data, len);
-        c = chart_parse(&ls);
+        snprintf(asset_path, sizeof(asset_path), APP_ASSETS_PATH("%s"), name);
+        if(!ls_open_file(&ls, storage, asset_path)) return NULL;
     } else {
         if(!ls_open_file(&ls, storage, path)) return NULL;
-        c = chart_parse(&ls);
     }
+    c = chart_parse(&ls);
     ls_close(&ls);
     return c;
 }
