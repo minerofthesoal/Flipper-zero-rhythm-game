@@ -3,7 +3,7 @@
 void pulse_scene_Game_on_enter(void* ctx) {
     PulseApp* app = ctx;
     judge_reset(&app->judge);
-    anomaly_reset(&app->anomaly);
+    anomaly_reset(&app->anomaly, app->difficulty);
     audio_reset(&app->audio);
     if(app->vgm_enabled) vgm_open(&app->vgm);
 

@@ -7,6 +7,12 @@ typedef enum {
     JudgePerfect,
     JudgeGreat,
     JudgeGood,
+    /* "Almost" tier — the press landed outside the Good window but was still
+     * close enough to count. Combo is preserved and the gauge nudges up, but
+     * score and audio cues are softer. Helps newer players stay in the song
+     * while telegraphing that they were a bit off. */
+    JudgeEarly,
+    JudgeLate,
     JudgeMiss,
 } JudgeResult;
 
@@ -21,6 +27,8 @@ typedef struct {
     uint16_t perfects;
     uint16_t greats;
     uint16_t goods;
+    uint16_t earlies;
+    uint16_t lates;
     uint16_t misses;
     uint16_t fakes_hit;
 
@@ -38,6 +46,7 @@ struct CharacterState;
 void   judge_reset(Judge* j);
 JudgeResult judge_press(Judge* j, const ChartDiff* d, uint8_t lane,
                         uint32_t now_ms, uint32_t great_ms, uint32_t good_ms,
+                        uint32_t lenient_ms,
                         AnomalyMod active_mod);
 void   judge_release(Judge* j, const ChartDiff* d, uint8_t lane,
                      uint32_t now_ms, uint32_t great_ms, uint32_t good_ms);
