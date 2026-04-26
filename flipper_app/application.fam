@@ -3,7 +3,7 @@ App(
     name="Pulse Rhythm",
     apptype=FlipperAppType.EXTERNAL,
     entry_point="pulse_app",
-    requires=["gui", "storage", "dialogs", "notification"],
+    requires=["gui", "storage", "notification"],
     stack_size=8 * 1024,
     fap_category="Games",
     fap_author="Pulse Team",

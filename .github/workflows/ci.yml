@@ -1,0 +1,145 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fap:
+    name: Build FAP (ufbt)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Build against both the official-firmware (release) and dev SDKs.
+        # ufbt picks an SDK channel via its --channel flag.
+        channel: [release, dev]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install ufbt
+        run: pip install --upgrade ufbt
+
+      - name: Sync ufbt SDK (${{ matrix.channel }})
+        working-directory: flipper_app
+        run: ufbt update --channel=${{ matrix.channel }}
+
+      - name: Build FAP
+        working-directory: flipper_app
+        run: ufbt
+
+      - name: Locate built FAP
+        id: locate
+        working-directory: flipper_app
+        run: |
+          set -euo pipefail
+          fap=$(find dist -maxdepth 3 -name '*.fap' -print -quit)
+          test -n "$fap" || { echo "::error::no .fap produced"; exit 1; }
+          echo "path=flipper_app/$fap" >> "$GITHUB_OUTPUT"
+          ls -lh "$fap"
+
+      - name: Upload FAP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pulse_rhythm-${{ matrix.channel }}.fap
+          path: ${{ steps.locate.outputs.path }}
+          if-no-files-found: error
+
+  songs:
+    name: Songs are reproducible
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      - name: Regenerate built-in songs
+        run: python3 flipper_app/songs/generate_songs.py
+
+      - name: Verify committed songs match generator output
+        run: |
+          if ! git diff --exit-code -- flipper_app/songs; then
+            echo "::error::committed songs differ from generator output."
+            echo "Run: python3 flipper_app/songs/generate_songs.py"
+            exit 1
+          fi
+
+      - name: Validate every .frgl parses
+        run: python3 .github/scripts/validate_frgl.py flipper_app/songs/*.frgl
+
+  editor:
+    name: Editor (syntax + smoke)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with: { node-version: "20" }
+
+      - name: JS syntax check
+        run: node --check editor/editor.js
+
+      - name: HTML/CSS sanity (no shipping markup errors)
+        run: |
+          # 1) every <script src> / <link href> referenced in index.html exists
+          python3 - <<'PY'
+          import re, sys, pathlib
+          html = pathlib.Path("editor/index.html").read_text()
+          missing = []
+          for m in re.finditer(r'(?:src|href)="([^"]+)"', html):
+              ref = m.group(1)
+              if ref.startswith(("http://", "https://", "data:")):
+                  continue
+              p = pathlib.Path("editor") / ref
+              if not p.exists():
+                  missing.append(ref)
+          if missing:
+              print("missing referenced files:", missing)
+              sys.exit(1)
+          PY
+
+      - name: Round-trip every built-in .frgl through editor's parser
+        run: |
+          # Pull the parse() function out of editor.js and exercise it under
+          # node by feeding it the generated charts. This catches any drift
+          # between the engine's format and the editor's reader.
+          node .github/scripts/editor_parse_smoke.mjs flipper_app/songs/*.frgl
+
+  format:
+    name: Format & file hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No tabs in C/C++ source
+        run: |
+          if grep -P '\t' -rl flipper_app --include='*.c' --include='*.h' \
+            | tee /tmp/tabs.txt | grep -q .; then
+            echo "::error::tabs found in source — Pulse uses 4-space indent."
+            cat /tmp/tabs.txt
+            exit 1
+          fi
+
+      - name: No trailing whitespace
+        run: |
+          ! grep -rIPn ' +$' flipper_app editor format README.md \
+              --include='*.c' --include='*.h' \
+              --include='*.js' --include='*.css' --include='*.html' \
+              --include='*.md' --include='*.frgl' --include='*.py'
+
+      - name: README & spec exist and are non-empty
+        run: |
+          for f in README.md format/FRGL_SPEC.md editor/README.md; do
+            test -s "$f" || { echo "::error::$f is empty or missing"; exit 1; }
+          done
