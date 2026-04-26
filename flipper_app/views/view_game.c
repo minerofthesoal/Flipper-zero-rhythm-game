@@ -36,10 +36,15 @@ static const NotificationSequence pulse_haptic_perfect = {
 #define LANE_X0        12      /* 4 lanes × 12 = 48 → x=12..60, leaves 64..127 for HUD */
 #define RECEPTOR_Y     54
 #define LANE_TOP_Y     14
-#define HIT_WINDOW_GREAT 50    /* ms */
-#define HIT_WINDOW_GOOD  100   /* ms */
-#define HIT_WINDOW_MISS  140   /* late = miss */
-#define GAUGE_PASS     65      /* gauge ≥ this at song end = pass */
+/* Forgiving timing windows. Anything inside HIT_WINDOW_LENIENT but outside
+ * HIT_WINDOW_GOOD reports as Early/Late — still scored, still combo, just a
+ * smaller gauge bump and a softer cue. Past LENIENT the press is ignored;
+ * a missed note auto-expires at HIT_WINDOW_MISS. */
+#define HIT_WINDOW_GREAT   80    /* ms */
+#define HIT_WINDOW_GOOD    140   /* ms */
+#define HIT_WINDOW_LENIENT 220   /* ms — Early/Late band */
+#define HIT_WINDOW_MISS    220   /* ms — past this, auto-miss */
+#define GAUGE_PASS         65    /* gauge ≥ this at song end = pass */
 
 /* Lane button mapping.
  *   lane 0 = Left, 1 = Up, 2 = Down, 3 = Right
@@ -221,6 +226,8 @@ static void draw_judgment_flash(Canvas* c, GameModel* m) {
         case JudgePerfect: s = "PERFECT"; break;
         case JudgeGreat:   s = "GREAT";   break;
         case JudgeGood:    s = "GOOD";    break;
+        case JudgeEarly:   s = "EARLY";   break;
+        case JudgeLate:    s = "LATE";    break;
         case JudgeMiss:    s = "MISS";    break;
         case JudgeNone:    return;
     }
@@ -331,6 +338,7 @@ static bool game_input(InputEvent* e, void* ctx) {
                         m->held_since[lane] = now_ms();
                         JudgeResult r = judge_press(m->judge, m->diff, lane, (uint32_t)t_signed,
                                                     HIT_WINDOW_GREAT, HIT_WINDOW_GOOD,
+                                                    HIT_WINDOW_LENIENT,
                                                     m->active_mod);
                         if(r != JudgeNone) {
                             m->last_result = r;
@@ -344,6 +352,8 @@ static bool game_input(InputEvent* e, void* ctx) {
                                     case JudgePerfect: hseq = &pulse_haptic_perfect; break;
                                     case JudgeGreat:   hseq = &pulse_haptic_great;   break;
                                     case JudgeGood:    hseq = &pulse_haptic_good;    break;
+                                    case JudgeEarly:
+                                    case JudgeLate:    hseq = &pulse_haptic_good;    break;
                                     case JudgeMiss:    /* no buzz on a miss */       break;
                                     case JudgeNone:    break;
                                 }
@@ -352,10 +362,12 @@ static bool game_input(InputEvent* e, void* ctx) {
                             if(m->notify && m->rgb) {
                                 const NotificationSequence* seq = NULL;
                                 switch(r) {
-                                    case JudgePerfect: seq = &sequence_blink_blue_10;  break;
-                                    case JudgeGreat:   seq = &sequence_blink_green_10; break;
-                                    case JudgeGood:    seq = &sequence_blink_yellow_10;break;
-                                    case JudgeMiss:    seq = &sequence_blink_red_10;   break;
+                                    case JudgePerfect: seq = &sequence_blink_blue_10;   break;
+                                    case JudgeGreat:   seq = &sequence_blink_green_10;  break;
+                                    case JudgeGood:    seq = &sequence_blink_yellow_10; break;
+                                    case JudgeEarly:
+                                    case JudgeLate:    seq = &sequence_blink_magenta_10;break;
+                                    case JudgeMiss:    seq = &sequence_blink_red_10;    break;
                                     case JudgeNone:    break;
                                 }
                                 if(seq) notification_message(m->notify, seq);

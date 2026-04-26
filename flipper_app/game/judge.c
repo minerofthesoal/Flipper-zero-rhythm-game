@@ -15,6 +15,11 @@ static void award(Judge* j, JudgeResult r) {
         case JudgePerfect: pts = 1000; j->perfects++; j->combo++; break;
         case JudgeGreat:   pts = 700;  j->greats++;   j->combo++; break;
         case JudgeGood:    pts = 300;  j->goods++;    j->combo++; break;
+        /* Early/Late: forgiving — keep the combo alive and award a small
+         * score, but visibly less than a Good so the player still feels
+         * the timing slip. */
+        case JudgeEarly:   pts = 100;  j->earlies++;  j->combo++; break;
+        case JudgeLate:    pts = 100;  j->lates++;    j->combo++; break;
         case JudgeMiss:    pts = 0;    j->misses++;   j->combo = 0; break;
         default: break;
     }
@@ -26,10 +31,11 @@ static void award(Judge* j, JudgeResult r) {
 
 JudgeResult judge_press(Judge* j, const ChartDiff* d, uint8_t lane,
                         uint32_t now_ms, uint32_t great_ms, uint32_t good_ms,
+                        uint32_t lenient_ms,
                         AnomalyMod active_mod) {
-    /* Find earliest unhit note in this lane within +/- good_ms */
+    /* Find earliest unhit note in this lane within +/- lenient_ms */
     int best = -1;
-    int best_dt = (int)good_ms + 1;
+    int best_dt = (int)lenient_ms + 1;
     uint32_t i = j->cursor;
     /* lane is RAW from input; under MIRROR/INVERT we need to compare to the
      * displayed lane (which is what the player sees). Apply same transform to
@@ -38,8 +44,8 @@ JudgeResult judge_press(Judge* j, const ChartDiff* d, uint8_t lane,
         const Note* n = &d->notes[i];
         if(n->hit) continue;
         int dt = (int)n->time_ms - (int)now_ms;
-        if(dt > (int)good_ms) break;
-        if(dt < -(int)good_ms) continue;
+        if(dt > (int)lenient_ms) break;
+        if(dt < -(int)lenient_ms) continue;
 
         uint8_t display_lane = n->lane;
         if(active_mod == AnomalyModMirror) display_lane = 3 - display_lane;
@@ -61,9 +67,10 @@ JudgeResult judge_press(Judge* j, const ChartDiff* d, uint8_t lane,
     Note* n = (Note*)&d->notes[best];
     int adt = abs_int(best_dt);
     JudgeResult r;
-    if(adt <= 25)               r = JudgePerfect;
+    if(adt <= 30)               r = JudgePerfect;
     else if(adt <= (int)great_ms) r = JudgeGreat;
-    else                        r = JudgeGood;
+    else if(adt <= (int)good_ms)  r = JudgeGood;
+    else                        r = (best_dt > 0) ? JudgeEarly : JudgeLate;
 
     if(n->type == NoteHold) {
         n->hit = 3; /* 3 = held; release will finalise */

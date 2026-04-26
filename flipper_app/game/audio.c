@@ -109,10 +109,18 @@ void audio_click(AudioEngine* a, JudgeResult r, uint8_t note_type) {
         case NoteTap:
         default:        base = 1320; break;   /* E6  — default tap */
     }
-    if(r == JudgePerfect)      base = (uint16_t)(base * 11 / 10);
-    else if(r == JudgeGood)    base = (uint16_t)(base * 9  / 10);
+    if(r == JudgePerfect)               base = (uint16_t)(base * 11 / 10);
+    else if(r == JudgeGood)             base = (uint16_t)(base * 9  / 10);
+    /* Early/Late are even softer than Good — drop pitch and per-note
+     * volume so the player hears that they were off without the click
+     * masking the music. */
+    uint8_t per_note_vol = 60;
+    if(r == JudgeEarly || r == JudgeLate) {
+        base = (uint16_t)(base * 4 / 5);
+        per_note_vol = 35;
+    }
     /* Clicks use the SFX volume so the player can balance them against the
      * music independently. */
-    play_tone_with_base(a, base, 60, a->volume);
+    play_tone_with_base(a, base, per_note_vol, a->volume);
     a->tone_off_ms = 0;
 }

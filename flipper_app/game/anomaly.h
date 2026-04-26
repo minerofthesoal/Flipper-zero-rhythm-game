@@ -14,12 +14,13 @@ typedef struct AnomalyState {
     uint8_t  active_index;   /* into chart anomaly list */
     bool     is_active;
     uint32_t since_active_ms;
+    uint8_t  difficulty;     /* PulseDifficulty — drives gauge generosity */
 } AnomalyState;
 
 struct CharacterState;
 
 void anomaly_init(AnomalyState* s);
-void anomaly_reset(AnomalyState* s);
+void anomaly_reset(AnomalyState* s, uint8_t difficulty);
 void anomaly_on_judge(AnomalyState* s, JudgeResult r, struct CharacterState* character);
 void anomaly_tick(AnomalyState* s, const Chart* chart, uint32_t time_ms,
                   AnomalyMod* out_mod, uint8_t* out_arg, uint32_t* out_flash_until);

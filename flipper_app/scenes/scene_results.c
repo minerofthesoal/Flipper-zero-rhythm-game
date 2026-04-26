@@ -26,10 +26,14 @@ static void results_draw(Canvas* c, void* m) {
     canvas_draw_str(c, 2, 32, buf);
     snprintf(buf, sizeof(buf), "Combo %u",  (unsigned)j->max_combo);
     canvas_draw_str(c, 2, 42, buf);
-    snprintf(buf, sizeof(buf), "P%u G%u M%u",
-             (unsigned)j->perfects, (unsigned)j->goods, (unsigned)j->misses);
+    /* Letter codes: Pf=Perfect, Gr=Great, Gd=Good, E=Early, L=Late, M=Miss. */
+    snprintf(buf, sizeof(buf), "Pf%u Gr%u Gd%u",
+             (unsigned)j->perfects, (unsigned)j->greats, (unsigned)j->goods);
     canvas_draw_str(c, 2, 52, buf);
-    canvas_draw_str(c, 2, 62, "Back: continue");
+    snprintf(buf, sizeof(buf), "E%u L%u M%u",
+             (unsigned)j->earlies, (unsigned)j->lates, (unsigned)j->misses);
+    canvas_draw_str(c, 2, 62, buf);
+    canvas_draw_str(c, 80, 62, "Back");
 }
 
 void pulse_scene_Results_on_enter(void* ctx) {

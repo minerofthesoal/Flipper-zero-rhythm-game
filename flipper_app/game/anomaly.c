@@ -3,11 +3,12 @@
 
 void anomaly_init(AnomalyState* s) { memset(s, 0, sizeof(*s)); }
 
-void anomaly_reset(AnomalyState* s) {
+void anomaly_reset(AnomalyState* s, uint8_t difficulty) {
     s->gauge = 30;            /* start at 30 — characters can shift */
     s->is_active = false;
     s->active_index = 0;
     s->since_active_ms = 0;
+    s->difficulty = difficulty;
 }
 
 void anomaly_on_judge(AnomalyState* s, JudgeResult r, CharacterState* character) {
@@ -16,6 +17,10 @@ void anomaly_on_judge(AnomalyState* s, JudgeResult r, CharacterState* character)
         case JudgePerfect: delta = +3; break;
         case JudgeGreat:   delta = +2; break;
         case JudgeGood:    delta = +1; break;
+        /* Early/Late still feed the gauge so a forgiving timing run can
+         * still pass — same nudge as a Good. */
+        case JudgeEarly:
+        case JudgeLate:    delta = +1; break;
         case JudgeMiss:    delta = -6; break;
         default: break;
     }
@@ -24,6 +29,10 @@ void anomaly_on_judge(AnomalyState* s, JudgeResult r, CharacterState* character)
         if(delta > 0) delta = (delta * def->gauge_gain_x100) / 100;
         else          delta = (delta * def->gauge_loss_x100) / 100;
     }
+    /* On Easy/Normal the gauge climbs twice as fast so casual players can
+     * still cross the 65% pass line without a perfect run. Loss isn't
+     * doubled — beginners shouldn't tank harder either. */
+    if(delta > 0 && s->difficulty <= 1) delta *= 2;
     s->gauge += delta;
     if(s->gauge < 0)   s->gauge = 0;
     if(s->gauge > 100) s->gauge = 100;
