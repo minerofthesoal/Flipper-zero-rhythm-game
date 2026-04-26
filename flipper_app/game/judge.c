@@ -71,6 +71,7 @@ JudgeResult judge_press(Judge* j, const ChartDiff* d, uint8_t lane,
         if(n->burst_left > 0) n->burst_left--;
         if(n->burst_left == 0) n->hit = 1;
         else { /* partial burst credit, don't consume */
+            j->last_hit_type = n->type;
             return JudgeGood;
         }
     } else if(n->type == NoteSlide) {
@@ -78,6 +79,7 @@ JudgeResult judge_press(Judge* j, const ChartDiff* d, uint8_t lane,
     } else {
         n->hit = 1;
     }
+    j->last_hit_type = n->type;
     award(j, r);
     return r;
 }

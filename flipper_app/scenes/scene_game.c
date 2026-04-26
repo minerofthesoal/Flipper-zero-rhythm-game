@@ -16,7 +16,7 @@ void pulse_scene_Game_on_enter(void* ctx) {
                     &app->anomaly, &app->audio, &app->character,
                     app->offset_ms, app->scroll_speed,
                     app->vgm_enabled ? &app->vgm : NULL,
-                    app->vibrate ? app->notifications : NULL);
+                    app->notifications, app->vibrate, app->rgb_enabled);
 
     view_dispatcher_switch_to_view(app->view_dispatcher, PulseViewGame);
 }

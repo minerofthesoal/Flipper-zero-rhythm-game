@@ -21,5 +21,7 @@ void audio_silence(AudioEngine* a);
 /* Schedule audio against the chart. Call frequently from tick. */
 void audio_tick(AudioEngine* a, const Chart* chart, uint32_t time_ms);
 
-/* Tiny click sound when the player hits a note. */
-void audio_click(AudioEngine* a, JudgeResult r);
+/* Tiny click sound when the player hits a note. note_type is the chart's
+ * NoteType (Tap/Hold/Burst/Slide/Chain/Fake) so each kind can have its own
+ * audible signature. */
+void audio_click(AudioEngine* a, JudgeResult r, uint8_t note_type);

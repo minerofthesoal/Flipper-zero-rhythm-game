@@ -26,6 +26,10 @@ typedef struct {
 
     uint32_t cursor;       /* note index to scan from */
     bool     failed;
+
+    /* Type of the most recent note that judge_press resolved. Used by the
+     * view to play a different click per note type. */
+    uint8_t  last_hit_type;
 } Judge;
 
 struct AnomalyState;

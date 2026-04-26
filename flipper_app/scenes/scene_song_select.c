@@ -87,16 +87,50 @@ void pulse_scene_SongSelect_on_enter(void* ctx) {
     view_dispatcher_switch_to_view(app->view_dispatcher, PulseViewSubmenu);
 }
 
+static uint8_t s_load_progress = 0;
+
+static void loading_draw(Canvas* c, void* model_ctx) {
+    UNUSED(model_ctx);
+    canvas_clear(c);
+    canvas_set_color(c, ColorBlack);
+    canvas_set_font(c, FontPrimary);
+    canvas_draw_str_aligned(c, 64, 22, AlignCenter, AlignCenter, "Loading");
+    /* Progress bar that fills as we walk chart_load. The caller bumps
+     * s_load_progress between phases. */
+    int w = s_load_progress;
+    if(w > 100) w = 100;
+    canvas_draw_frame(c, 14, 38, 100, 8);
+    canvas_draw_box(c, 14, 38, w, 8);
+    canvas_set_font(c, FontSecondary);
+    char buf[12];
+    snprintf(buf, sizeof(buf), "%u%%", (unsigned)s_load_progress);
+    canvas_draw_str_aligned(c, 64, 56, AlignCenter, AlignCenter, buf);
+}
+
 bool pulse_scene_SongSelect_on_event(void* ctx, SceneManagerEvent evt) {
     PulseApp* app = ctx;
     if(evt.type != SceneManagerEventTypeCustom) return false;
     if(evt.event >= s_song_count) return false;
 
-    /* Load chart now so difficulty screen can show ratings */
+    /* Show a real loading screen while we open and parse the chart. The
+     * splash that runs at app start is just branding — actual loading work
+     * happens here. */
+    s_load_progress = 5;
+    game_view_set_splash(app->game_view, loading_draw);
+    view_dispatcher_switch_to_view(app->view_dispatcher, PulseViewGame);
+    game_view_request_redraw(app->game_view);
+
     if(app->chart) { chart_free(app->chart); app->chart = NULL; }
+    s_load_progress = 35;
+    game_view_request_redraw(app->game_view);
+
     app->chart = chart_load(app->storage, furi_string_get_cstr(s_songs[evt.event].path));
+    s_load_progress = 100;
+    game_view_request_redraw(app->game_view);
+
+    game_view_set_splash(app->game_view, NULL);
+
     if(!app->chart) {
-        /* show a quick dialog and bail */
         DialogEx* d = app->dialog;
         dialog_ex_reset(d);
         dialog_ex_set_header(d, "Load failed", 64, 12, AlignCenter, AlignCenter);

@@ -21,7 +21,9 @@ typedef void (*GameViewSplashFn)(Canvas* canvas, void* model_ctx);
 void game_view_set_splash(GameView* v, GameViewSplashFn fn);
 void game_view_request_redraw(GameView* v);
 
-/* Begin gameplay with the given chart+difficulty. */
+/* Begin gameplay with the given chart+difficulty. notify is the notification
+ * app (always non-null on Flipper); vibrate / rgb gate which flavours of
+ * feedback are actually emitted. */
 void game_view_start(
     GameView*               v,
     Chart*                  chart,
@@ -33,7 +35,9 @@ void game_view_start(
     int16_t                 offset_ms,
     uint8_t                 scroll_speed,
     VgmDisplay*             vgm_optional,
-    NotificationApp*        haptics_optional);
+    NotificationApp*        notify,
+    bool                    vibrate,
+    bool                    rgb);
 
 void game_view_stop(GameView* v);
 

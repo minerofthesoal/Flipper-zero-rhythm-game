@@ -80,6 +80,7 @@ typedef struct PulseApp {
     uint8_t             scroll_speed; /* 5..15 ; default 10 */
     bool                vgm_enabled;
     bool                vibrate;
+    bool                rgb_enabled;
 } PulseApp;
 
 PulseApp* pulse_app_alloc(void);

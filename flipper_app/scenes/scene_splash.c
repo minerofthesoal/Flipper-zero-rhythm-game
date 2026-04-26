@@ -11,14 +11,15 @@ static void splash_draw(Canvas* c, void* m) {
     canvas_set_color(c, ColorBlack);
     /* PULSE wordmark */
     canvas_set_font(c, FontPrimary);
-    canvas_draw_str_aligned(c, 64, 22, AlignCenter, AlignCenter, "PULSE");
+    canvas_draw_str_aligned(c, 64, 26, AlignCenter, AlignCenter, "PULSE");
     canvas_set_font(c, FontSecondary);
-    canvas_draw_str_aligned(c, 64, 36, AlignCenter, AlignCenter, "rhythm engine");
-    /* loading bar */
-    int w = (s_splash.ticks * 100) / SplashTickHold;
-    if(w > 100) w = 100;
-    canvas_draw_frame(c, 14, 50, 100, 6);
-    canvas_draw_box(c, 14, 50, w, 6);
+    canvas_draw_str_aligned(c, 64, 40, AlignCenter, AlignCenter, "rhythm engine");
+    /* Pulsing dot — beats with the splash hold so the screen feels alive
+     * without pretending we're loading anything (we're not — chart loading
+     * happens later, in song_select). */
+    int phase = s_splash.ticks % 12;
+    int rad = phase < 6 ? phase : 12 - phase;
+    canvas_draw_disc(c, 64, 54, 1 + rad / 2);
 }
 
 void pulse_scene_Splash_on_enter(void* ctx) {
