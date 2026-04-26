@@ -47,17 +47,6 @@ mobile browser. Optionally mirrors gameplay onto an external display via the
 * **External display**: optional VGM module mirror at higher resolution.
 * **Built-in soundtrack**: 4 chiptune tracks, ~95 s each, all 4 difficulties.
 
-## Built-in songs
-
-| Title             | Artist     | BPM | Length | Vibe                          |
-|-------------------|-----------|----:|-------:|-------------------------------|
-| Pulse Drive       | NEO//SHARD| 140 |   95 s | driving electronic            |
-| Crystal Cascade   | Mira Hex  | 128 |   94 s | melodic / arpeggiated         |
-| Neon Heartbeat    | Solenne   | 160 |   94 s | upbeat / fast                 |
-| Glitch Garden     | NEO//SHARD| 110 |   94 s | mid-tempo low-end groove      |
-
-All four are stored as `.frgl` text and embedded into the FAP at compile time
-(`flipper_app/songs/*.frgl` + `builtin_songs.c`).
 
 ## Layout
 
@@ -149,6 +138,4 @@ is deterministic (seeded RNG) so charts won't drift between runs.
 
 ## License
 
-MIT (suggested). Pulse is a fan/hobby project — not affiliated with Flipper
-Devices or any music label. Soundtrack names are placeholders for the
-generated chiptune; replace with your own under any license you like.
+MIT . 
