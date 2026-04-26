@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000">
+<title>Pulse · FRGL Editor</title>
+<link rel="stylesheet" href="editor.css">
+</head>
+<body class="dark">
+
+<header class="topbar">
+  <div class="brand">PULSE <span>· editor</span></div>
+  <div class="actions">
+    <button id="newBtn"   class="btn">New</button>
+    <label class="btn">Open<input id="openInput" type="file" accept=".frgl,text/*" hidden></label>
+    <button id="saveBtn"  class="btn primary">Export .frgl</button>
+    <button id="playBtn"  class="btn">▶ Play</button>
+    <button id="stopBtn"  class="btn" disabled>■ Stop</button>
+    <button id="helpBtn"  class="btn ghost" title="Shortcuts">?</button>
+  </div>
+</header>
+
+<aside class="sidebar">
+  <h3>Song</h3>
+  <label>Title<input id="metaTitle"  type="text" value="Untitled"></label>
+  <label>Artist<input id="metaArtist" type="text" value="anonymous"></label>
+  <label>BPM<input id="metaBpm" type="number" min="40" max="300" value="140"></label>
+  <label>Offset (ms)<input id="metaOffset" type="number" value="0"></label>
+  <label>Length (ms)<input id="metaLength" type="number" value="60000"></label>
+  <label>Preview (ms)<input id="metaPreview" type="number" value="0"></label>
+  <label>Author<input id="metaAuthor" type="text" value="me"></label>
+  <label>Default character
+    <select id="metaCharacter">
+      <option value="null">null</option>
+      <option value="mira">mira</option>
+      <option value="axon">axon</option>
+      <option value="glitch">glitch</option>
+      <option value="solenne">solenne</option>
+    </select>
+  </label>
+
+  <h3>Difficulty</h3>
+  <div class="diff-tabs">
+    <button data-diff="easy"   class="tab active">Easy</button>
+    <button data-diff="normal" class="tab">Normal</button>
+    <button data-diff="fun"    class="tab">Fun</button>
+    <button data-diff="nitro"  class="tab">Nitro</button>
+  </div>
+  <label>Level<input id="diffLevel" type="text" value="3" pattern="[0-9]+(\.[0-9])?\+?"></label>
+
+  <h3>Tools</h3>
+  <div class="tools">
+    <button data-tool="T" class="tool active" title="Tap (T)">●</button>
+    <button data-tool="H" class="tool" title="Hold (H)">█</button>
+    <button data-tool="B" class="tool" title="Burst (B)">B</button>
+    <button data-tool="S" class="tool" title="Slide (S)">S</button>
+    <button data-tool="F" class="tool" title="Fake (F)">?</button>
+    <button data-tool="X" class="tool" title="Chain (X)">·</button>
+    <button data-tool="E" class="tool" title="Erase">⌫</button>
+  </div>
+  <label>Snap
+    <select id="snap">
+      <option value="1">1/1</option>
+      <option value="2">1/2</option>
+      <option value="4" selected>1/4</option>
+      <option value="8">1/8</option>
+      <option value="16">1/16</option>
+    </select>
+  </label>
+  <label>Zoom <input id="zoom" type="range" min="40" max="300" value="120"></label>
+
+  <h3>Anomalies</h3>
+  <div id="anomalyList" class="anomaly-list"></div>
+  <button id="addAnomaly" class="btn small">+ add anomaly</button>
+
+  <h3>Stats</h3>
+  <div id="stats" class="stats"></div>
+</aside>
+
+<main class="editor">
+  <canvas id="board" tabindex="0"></canvas>
+  <div class="hint">click a lane to place a note · drag a hold to extend · long-press to delete</div>
+</main>
+
+<dialog id="helpDialog">
+  <h2>Pulse Editor — shortcuts</h2>
+  <ul>
+    <li><kbd>1</kbd>–<kbd>4</kbd> select lane (Left/Up/Down/Right)</li>
+    <li><kbd>T H B S F X</kbd> select tool</li>
+    <li><kbd>Space</kbd> play / pause</li>
+    <li><kbd>↑ ↓</kbd> scroll · <kbd>← →</kbd> change difficulty</li>
+    <li><kbd>Ctrl/⌘+S</kbd> export .frgl</li>
+    <li><kbd>Ctrl/⌘+Z</kbd> undo · <kbd>Ctrl/⌘+Y</kbd> redo</li>
+    <li><kbd>Del</kbd> delete selected note</li>
+  </ul>
+  <p>Mobile: tap a lane cell to place; tap an existing note to delete; long-press on a hold to drag its tail.</p>
+  <form method="dialog"><button class="btn">Close</button></form>
+</dialog>
+
+<script src="editor.js"></script>
+</body>
+</html>
