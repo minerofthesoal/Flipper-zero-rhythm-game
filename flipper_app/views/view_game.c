@@ -179,6 +179,7 @@ static void game_draw(Canvas* c, void* model) {
             case JudgeGreat:   s = "GREAT";   break;
             case JudgeGood:    s = "GOOD";    break;
             case JudgeMiss:    s = "MISS";    break;
+            case JudgeNone:    break;
         }
         canvas_draw_str_aligned(c, 64, 30, AlignCenter, AlignCenter, s);
     }

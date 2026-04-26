@@ -1,6 +1,7 @@
 #pragma once
 
 #include <gui/view.h>
+#include <notification/notification.h>
 #include "../game/chart.h"
 #include "../game/judge.h"
 #include "../game/audio.h"
