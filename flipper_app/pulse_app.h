@@ -76,7 +76,8 @@ typedef struct PulseApp {
 
     /* Settings (mirrored into save) */
     int16_t             offset_ms;
-    uint8_t             volume;       /* 0..100 */
+    uint8_t             volume;       /* SFX/click volume, 0..100 */
+    uint8_t             music_volume; /* chart-tone volume, 0..100 */
     uint8_t             scroll_speed; /* 5..15 ; default 10 */
     bool                vgm_enabled;
     bool                vibrate;
