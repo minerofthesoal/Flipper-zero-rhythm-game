@@ -26,7 +26,7 @@ typedef struct {
     bool     no_fail;
 } CharacterDef;
 
-typedef struct {
+typedef struct CharacterState {
     CharacterId id;
 } CharacterState;
 

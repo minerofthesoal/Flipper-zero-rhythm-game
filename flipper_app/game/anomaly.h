@@ -9,7 +9,7 @@
  * sped up, infested with extra chains, etc. The result is that good players
  * get harder charts; weaker players get an easier ride. */
 
-typedef struct {
+typedef struct AnomalyState {
     int16_t  gauge;          /* 0..100 */
     uint8_t  active_index;   /* into chart anomaly list */
     bool     is_active;

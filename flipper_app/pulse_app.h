@@ -46,7 +46,7 @@ typedef enum {
     PulseDiffCount,
 } PulseDifficulty;
 
-typedef struct {
+typedef struct PulseApp {
     Gui*                gui;
     NotificationApp*    notifications;
     Storage*            storage;
