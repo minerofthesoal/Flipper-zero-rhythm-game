@@ -20,6 +20,16 @@ static void volume_changed(VariableItem* item) {
     variable_item_set_current_value_text(item, buf);
 }
 
+static void music_changed(VariableItem* item) {
+    PulseApp* app = variable_item_get_context(item);
+    uint8_t idx = variable_item_get_current_value_index(item);
+    app->music_volume = idx * 10;
+    audio_set_music_volume(&app->audio, app->music_volume);
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%d%%", app->music_volume);
+    variable_item_set_current_value_text(item, buf);
+}
+
 static void scroll_changed(VariableItem* item) {
     PulseApp* app = variable_item_get_context(item);
     uint8_t idx = variable_item_get_current_value_index(item);
@@ -63,10 +73,16 @@ void pulse_scene_Settings_on_enter(void* ctx) {
     snprintf(tmp, sizeof(tmp), "%+dms", app->offset_ms);
     variable_item_set_current_value_text(it, tmp);
 
-    /* Volume: 0..100% in 10% steps */
-    it = variable_item_list_add(l, "Volume", 11, volume_changed, app);
+    /* SFX (hit-click) volume */
+    it = variable_item_list_add(l, "SFX Vol", 11, volume_changed, app);
     variable_item_set_current_value_index(it, app->volume / 10);
     snprintf(tmp, sizeof(tmp), "%d%%", app->volume);
+    variable_item_set_current_value_text(it, tmp);
+
+    /* Music (chart-tone) volume */
+    it = variable_item_list_add(l, "Music Vol", 11, music_changed, app);
+    variable_item_set_current_value_index(it, app->music_volume / 10);
+    snprintf(tmp, sizeof(tmp), "%d%%", app->music_volume);
     variable_item_set_current_value_text(it, tmp);
 
     /* Scroll speed: 5..15 */

@@ -232,16 +232,54 @@ def chart_for(diff: str, melody: list[str], bpm: int, length_ms: int, level: int
 
 
 # ------------------------------------------------------------------
+def _down_octave(name: str) -> str:
+    """Pick a bass voice an octave below the melody note (best-effort)."""
+    if name == 'R' or len(name) < 2 or not name[-1].isdigit():
+        return 'R'
+    octave = int(name[-1])
+    pitch  = name[:-1]
+    return f'{pitch}{max(2, octave - 2)}'
+
+def _up_third(name: str) -> str:
+    """A loose major-third / fifth-ish embellishment for arpeggio sparkle."""
+    order = ['C','D','E','F','G','A','B']
+    if name == 'R' or len(name) < 2 or name[0] not in order:
+        return name
+    octave = int(name[-1])
+    pitch  = name[0]
+    idx = (order.index(pitch) + 2) % 7
+    if order.index(pitch) + 2 >= 7:
+        octave += 1
+    return f'{order[idx]}{octave}'
+
 def audio_section(melody: list[str], bpm: int, length_ms: int) -> str:
-    """Sequence of tone events. Loops the melody to fill length_ms."""
+    """Per-beat audio: melody voice + bass + arpeggio embellishment.
+
+    The Flipper speaker is monophonic, so polyphony is simulated by slicing
+    each beat into three short tones (bass → melody → grace) that sequence
+    fast enough to read as a phrase rather than a metronome blip. The result
+    is much closer to "music" than a single-note-per-beat chiptune."""
     beat_ms = 60_000 // bpm
+    bass_ms  = max(40, int(beat_ms * 0.30))
+    mel_ms   = max(60, int(beat_ms * 0.45))
+    grace_ms = max(30, int(beat_ms * 0.20))
     out = []
     t = 0
     i = 0
     while t < length_ms:
         n = melody[i % len(melody)]
-        freq = NOTES.get(n, 0)
-        out.append(f'{t},{freq},{int(beat_ms*0.85)},80')
+        m_freq = NOTES.get(n, 0)
+        b_freq = NOTES.get(_down_octave(n), 0)
+        g_freq = NOTES.get(_up_third(n),    0)
+        # bass plucks the downbeat, then the melody, then a grace pickup
+        if b_freq: out.append(f'{t},{b_freq},{bass_ms},90')
+        t_mel = t + bass_ms + 5
+        if m_freq: out.append(f'{t_mel},{m_freq},{mel_ms},80')
+        # only sprinkle the grace note on every other beat — keeps it musical
+        if g_freq and i % 2 == 1:
+            t_g = t_mel + mel_ms + 5
+            if t_g < t + beat_ms:
+                out.append(f'{t_g},{g_freq},{grace_ms},55')
         t += beat_ms
         i += 1
     return '\n'.join(out)

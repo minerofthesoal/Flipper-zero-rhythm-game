@@ -37,9 +37,10 @@ PulseApp* pulse_app_alloc(void) {
     app->vgm_enabled  = app->save.vgm_enabled;
     app->vibrate      = app->save.vibrate;
     app->rgb_enabled  = app->save.rgb_enabled;
+    app->music_volume = app->save.music_volume;
     app->difficulty   = PulseDiffNormal;
 
-    audio_init(&app->audio, app->volume);
+    audio_init(&app->audio, app->volume, app->music_volume);
     anomaly_init(&app->anomaly);
     character_init(&app->character, app->save.character_id);
     vgm_init(&app->vgm);
@@ -80,6 +81,7 @@ void pulse_app_free(PulseApp* app) {
     app->save.vgm_enabled  = app->vgm_enabled;
     app->save.vibrate      = app->vibrate;
     app->save.rgb_enabled  = app->rgb_enabled;
+    app->save.music_volume = app->music_volume;
     app->save.character_id = app->character.id;
     save_store(&app->save, app->storage);
 

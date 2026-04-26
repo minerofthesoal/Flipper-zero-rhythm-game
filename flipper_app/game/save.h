@@ -21,15 +21,14 @@ typedef struct {
     uint32_t magic;            /* 'PSAV' */
     uint16_t version;
     int16_t  offset_ms;
-    uint8_t  volume;
+    uint8_t  volume;           /* SFX / hit-click volume, 0..100 */
     uint8_t  scroll_speed;
     uint8_t  vgm_enabled;
     uint8_t  vibrate;
     uint8_t  character_id;
-    /* RGB backlight: light the notification LED on hits — handy on Flipper
-     * mods with the colour LED swap. Default 0 (off). Reuses the previously
-     * reserved byte so the save format stays at version 1. */
     uint8_t  rgb_enabled;
+    uint8_t  music_volume;     /* chart-tone volume, 0..100 (added v2) */
+    uint8_t  reserved1;        /* keep struct size aligned */
 
     uint32_t total_perfects;
     uint32_t total_plays;

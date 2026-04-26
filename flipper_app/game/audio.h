@@ -6,16 +6,18 @@
 
 typedef struct {
     bool     speaker_held;
-    uint8_t  volume;        /* 0..100 */
+    uint8_t  volume;        /* SFX / click volume, 0..100 */
+    uint8_t  music_volume;  /* chart-tone volume, 0..100 */
     uint32_t cursor;        /* into chart audio array */
     uint32_t tone_off_ms;   /* when current tone should stop */
     uint16_t current_freq;
 } AudioEngine;
 
-void audio_init(AudioEngine* a, uint8_t volume);
+void audio_init(AudioEngine* a, uint8_t sfx_volume, uint8_t music_volume);
 void audio_deinit(AudioEngine* a);
 void audio_reset(AudioEngine* a);
-void audio_set_volume(AudioEngine* a, uint8_t v);
+void audio_set_volume(AudioEngine* a, uint8_t v);            /* SFX */
+void audio_set_music_volume(AudioEngine* a, uint8_t v);
 void audio_silence(AudioEngine* a);
 
 /* Schedule audio against the chart. Call frequently from tick. */

@@ -26,22 +26,21 @@ static void stop_tone(AudioEngine* a) {
     a->current_freq = 0;
 }
 
-static void play_tone(AudioEngine* a, uint16_t freq, uint8_t per_note_volume) {
-    if(freq == 0 || a->volume == 0) { stop_tone(a); return; }
+static void play_tone_with_base(AudioEngine* a, uint16_t freq,
+                                uint8_t per_note_volume, uint8_t base_volume) {
+    if(freq == 0 || base_volume == 0) { stop_tone(a); return; }
     if(!acquire(a)) return;
-    /* Mix global volume with per-note volume (both 0..100). */
-    uint16_t mixed = ((uint16_t)a->volume * per_note_volume) / 100;
+    uint16_t mixed = ((uint16_t)base_volume * per_note_volume) / 100;
     if(mixed == 0) { stop_tone(a); return; }
-    /* Re-issuing _start while a tone plays just changes pitch on Flipper, but
-     * stop-then-start is the documented pattern and works reliably. */
     if(a->current_freq != 0) furi_hal_speaker_stop();
     furi_hal_speaker_start((float)freq, vol_to_float((uint8_t)mixed));
     a->current_freq = freq;
 }
 
-void audio_init(AudioEngine* a, uint8_t volume) {
+void audio_init(AudioEngine* a, uint8_t sfx_volume, uint8_t music_volume) {
     memset(a, 0, sizeof(*a));
-    a->volume = volume;
+    a->volume = sfx_volume;
+    a->music_volume = music_volume;
 }
 
 void audio_deinit(AudioEngine* a) {
@@ -56,7 +55,8 @@ void audio_reset(AudioEngine* a) {
     a->tone_off_ms = 0;
 }
 
-void audio_set_volume(AudioEngine* a, uint8_t v) { a->volume = v; }
+void audio_set_volume(AudioEngine* a, uint8_t v)       { a->volume = v; }
+void audio_set_music_volume(AudioEngine* a, uint8_t v) { a->music_volume = v; }
 
 void audio_silence(AudioEngine* a) {
     stop_tone(a);
@@ -82,7 +82,8 @@ void audio_tick(AudioEngine* a, const Chart* chart, uint32_t time_ms) {
         const AudioTone* tn = &tones[a->cursor];
         if(tn->time_ms > time_ms) break;
         if(tn->freq_hz > 0 && tn->volume > 0) {
-            play_tone(a, tn->freq_hz, tn->volume);
+            /* Chart tones use the music volume slider. */
+            play_tone_with_base(a, tn->freq_hz, tn->volume, a->music_volume);
             a->tone_off_ms = tn->time_ms + tn->duration_ms;
         } else {
             stop_tone(a);
@@ -108,9 +109,10 @@ void audio_click(AudioEngine* a, JudgeResult r, uint8_t note_type) {
         case NoteTap:
         default:        base = 1320; break;   /* E6  — default tap */
     }
-    /* Tilt pitch by quality so good play sounds bright. */
     if(r == JudgePerfect)      base = (uint16_t)(base * 11 / 10);
     else if(r == JudgeGood)    base = (uint16_t)(base * 9  / 10);
-    play_tone(a, base, 60);
-    a->tone_off_ms = 0; /* let the next tick decide what's next */
+    /* Clicks use the SFX volume so the player can balance them against the
+     * music independently. */
+    play_tone_with_base(a, base, 60, a->volume);
+    a->tone_off_ms = 0;
 }
