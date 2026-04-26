@@ -141,7 +141,7 @@ static void parse_meta(Chart* c, char* line) {
     const char* v = eq + 1;
     if(strcmp(k, "title")     == 0) copy_str(c->title,   sizeof(c->title),   v);
     else if(strcmp(k, "artist")    == 0) copy_str(c->artist,  sizeof(c->artist),  v);
-    else if(strcmp(k, "bpm")       == 0) c->bpm_x100 = (uint32_t)(atof(v) * 100.0);
+    else if(strcmp(k, "bpm")       == 0) c->bpm_x100 = (uint32_t)(atof(v) * 100);
     else if(strcmp(k, "offset")    == 0) c->offset_ms = atoi(v);
     else if(strcmp(k, "length")    == 0) c->length_ms = (uint32_t)atoi(v);
     else if(strcmp(k, "preview")   == 0) c->preview_ms = (uint32_t)atoi(v);
@@ -153,7 +153,7 @@ static uint16_t parse_level(const char* v) {
     /* "5", "5+", "5.5", "11" — store as level*10. "+" is 0.5. */
     char* dot = strchr((char*)v, '.');
     char* plus = strchr((char*)v, '+');
-    if(dot) return (uint16_t)(atof(v) * 10.0);
+    if(dot) return (uint16_t)(atof(v) * 10);
     int n = atoi(v);
     return (uint16_t)(n * 10 + (plus ? 5 : 0));
 }
@@ -177,9 +177,11 @@ static void parse_note(Chart* c, int diff, char* line) {
     /* time_ms,lane,type[,arg] */
     char* p = line;
     uint32_t time_ms = (uint32_t)strtoul(p, &p, 10);
-    if(*p != ',') return;  p++;
+    if(*p != ',') return;
+    p++;
     uint8_t lane = (uint8_t)strtoul(p, &p, 10);
-    if(*p != ',') return;  p++;
+    if(*p != ',') return;
+    p++;
     char tch = *p++;
     uint16_t arg = 0;
     if(*p == ',') { p++; arg = (uint16_t)strtoul(p, NULL, 10); }
