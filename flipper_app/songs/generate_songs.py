@@ -85,6 +85,63 @@ SONGS = [
             'A3','E4','A4','C5', 'B4','A4','G4','E4',
         ],
     },
+    # ---- Locked tier — unlocked one-by-one as the player clears the prior. --
+    {
+        'id':     'moonlit_drift',
+        'title':  'Moonlit Drift',
+        'artist': 'Hex Lullaby',
+        'bpm':    96,
+        'character': 'solenne',
+        'levels': {'easy': 30, 'normal': 55, 'fun': 85, 'nitro': 110},
+        'melody': [
+            'D4','F4','A4','D5', 'C5','A4','F4','A4',
+            'B3','D4','G4','B4', 'A4','G4','D4','G4',
+            'C4','E4','G4','C5', 'B4','G4','E4','G4',
+            'D4','F4','A4','D5', 'F5','D5','A4','F4',
+        ],
+    },
+    {
+        'id':     'volt_reactor',
+        'title':  'Volt Reactor',
+        'artist': 'NEO//SHARD',
+        'bpm':    175,
+        'character': 'glitch',
+        'levels': {'easy': 45, 'normal': 75, 'fun': 110, 'nitro': 135},
+        'melody': [
+            'E4','G4','B4','E5', 'D5','B4','G4','B4',
+            'A4','C5','E5','A5', 'G5','E5','C5','E5',
+            'F4','A4','C5','F5', 'E5','C5','A4','C5',
+            'B4','D5','F5','B5', 'A5','F5','D5','F5',
+        ],
+    },
+    {
+        'id':     'phantom_echo',
+        'title':  'Phantom Echo',
+        'artist': 'Mira Hex',
+        'bpm':    120,
+        'character': 'mira',
+        'levels': {'easy': 50, 'normal': 80, 'fun': 115, 'nitro': 140},
+        'melody': [
+            'A4','C5','E5','C5', 'G4','B4','D5','B4',
+            'F4','A4','C5','A4', 'E4','G4','B4','G4',
+            'D4','F4','A4','F4', 'C4','E4','G4','E4',
+            'A3','C4','E4','C4', 'G3','B3','D4','G4',
+        ],
+    },
+    {
+        'id':     'static_surge',
+        'title':  'Static Surge',
+        'artist': 'AXON.exe',
+        'bpm':    190,
+        'character': 'axon',
+        'levels': {'easy': 60, 'normal': 90, 'fun': 125, 'nitro': 150},
+        'melody': [
+            'C5','E5','G5','C6', 'B5','G5','E5','G5',
+            'F5','A5','C6','F6', 'E6','C6','A5','C6',
+            'D5','F5','A5','D6', 'C6','A5','F5','A5',
+            'G4','B4','D5','G5', 'F5','D5','B4','D5',
+        ],
+    },
 ]
 
 

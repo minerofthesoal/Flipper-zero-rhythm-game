@@ -590,14 +590,17 @@ function startPlay() {
     osc.stop(t0 + a.dur / 1000 + 0.05);
     scheduledNodes.push(osc);
   }
-  // tap clicks for current diff
+  // tap clicks for current diff — pitch matches the per-note-type sound the
+  // game emits (Tap E6, Hold A5, Burst B6, Slide G6, Chain E5; Fake silent).
+  const clickHz = { T: 1320, H: 880, B: 1976, S: 1568, X: 660 };
   for(const n of state.diffs[state.active].notes) {
     if(n.time < state.scroll) continue;
     if(n.type === 'F') continue;
+    const hz = clickHz[n.type] || 1320;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.type = 'triangle';
-    osc.frequency.value = 1800;
+    osc.frequency.value = hz;
     const t0 = audioCtx.currentTime + (n.time - state.scroll) / 1000;
     gain.gain.setValueAtTime(0, t0);
     gain.gain.linearRampToValueAtTime(0.15, t0 + 0.001);
