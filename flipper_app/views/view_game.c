@@ -4,6 +4,31 @@
 
 #include <gui/elements.h>
 
+/* ------- haptic feedback ------------------------------------------------- */
+
+/* Three tiers of buzz: a player feels the difference between a barely-good
+ * hit and a perfectly-timed one in their hand, which trains the timing
+ * intuition without forcing them to read the on-screen label. The vibrator
+ * has only on/off so "stronger" means longer. */
+static const NotificationSequence pulse_haptic_good = {
+    &message_vibro_on,
+    &message_delay_10,
+    &message_vibro_off,
+    NULL,
+};
+static const NotificationSequence pulse_haptic_great = {
+    &message_vibro_on,
+    &message_delay_25,
+    &message_vibro_off,
+    NULL,
+};
+static const NotificationSequence pulse_haptic_perfect = {
+    &message_vibro_on,
+    &message_delay_50,
+    &message_vibro_off,
+    NULL,
+};
+
 /* ------- model ----------------------------------------------------------- */
 
 #define LANE_COUNT     4
@@ -312,8 +337,17 @@ static bool game_input(InputEvent* e, void* ctx) {
                             m->last_result_until_ms = now_ms() + 250;
                             anomaly_on_judge(m->anomaly, r, m->character);
                             audio_click(m->audio, r, m->judge->last_hit_type);
-                            if(m->notify && m->vibrate && r == JudgePerfect) {
-                                notification_message(m->notify, &sequence_single_vibro);
+                            if(m->notify && m->vibrate) {
+                                /* Tiered haptic: longer pulse = better hit. */
+                                const NotificationSequence* hseq = NULL;
+                                switch(r) {
+                                    case JudgePerfect: hseq = &pulse_haptic_perfect; break;
+                                    case JudgeGreat:   hseq = &pulse_haptic_great;   break;
+                                    case JudgeGood:    hseq = &pulse_haptic_good;    break;
+                                    case JudgeMiss:    /* no buzz on a miss */       break;
+                                    case JudgeNone:    break;
+                                }
+                                if(hseq) notification_message(m->notify, hseq);
                             }
                             if(m->notify && m->rgb) {
                                 const NotificationSequence* seq = NULL;
