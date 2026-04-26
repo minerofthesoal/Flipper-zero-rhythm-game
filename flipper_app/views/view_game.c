@@ -99,11 +99,13 @@ static void draw_hud(Canvas* c, GameModel* m) {
     canvas_set_font(c, FontSecondary);
     canvas_set_color(c, ColorBlack);
     /* Score line — left of HUD column. */
-    snprintf(buf, sizeof(buf), "%06lu", (unsigned long)m->judge->score);
+    uint32_t score = m->judge ? m->judge->score : 0;
+    uint16_t combo = m->judge ? m->judge->combo : 0;
+    snprintf(buf, sizeof(buf), "%06lu", (unsigned long)score);
     canvas_draw_str(c, 0, 8, buf);
     /* Combo — right side, big, only when meaningful. */
-    if(m->judge->combo > 0) {
-        snprintf(buf, sizeof(buf), "x%u", (unsigned)m->judge->combo);
+    if(combo > 0) {
+        snprintf(buf, sizeof(buf), "x%u", (unsigned)combo);
         canvas_set_font(c, FontPrimary);
         canvas_draw_str_aligned(c, 127, 9, AlignRight, AlignBottom, buf);
         canvas_set_font(c, FontSecondary);
@@ -136,6 +138,7 @@ static void draw_lanes(Canvas* c, GameModel* m) {
 }
 
 static void draw_notes(Canvas* c, GameModel* m, uint32_t t, int speed) {
+    if(!m->diff || !m->diff->notes) return;
     uint32_t lookahead_ms = (RECEPTOR_Y - LANE_TOP_Y) * 1000u / (speed * 4);
     const Note* notes = m->diff->notes;
     uint32_t n = m->diff->note_count;

@@ -154,8 +154,9 @@ bool pulse_scene_SongSelect_on_event(void* ctx, SceneManagerEvent evt) {
     }
 
     /* Show a real loading screen while we open and parse the chart. The
-     * splash that runs at app start is just branding — actual loading work
-     * happens here. */
+     * splash override stays in place until on_exit clears it — clearing it
+     * here would unmask the (still-uninitialised) game model and crash
+     * draw_callback before the next scene switches the view away. */
     s_load_progress = 5;
     game_view_set_splash(app->game_view, loading_draw);
     view_dispatcher_switch_to_view(app->view_dispatcher, PulseViewGame);
@@ -168,8 +169,6 @@ bool pulse_scene_SongSelect_on_event(void* ctx, SceneManagerEvent evt) {
     app->chart = chart_load(app->storage, furi_string_get_cstr(s_songs[evt.event].path));
     s_load_progress = 100;
     game_view_request_redraw(app->game_view);
-
-    game_view_set_splash(app->game_view, NULL);
 
     if(!app->chart) {
         DialogEx* d = app->dialog;
@@ -187,5 +186,8 @@ bool pulse_scene_SongSelect_on_event(void* ctx, SceneManagerEvent evt) {
 void pulse_scene_SongSelect_on_exit(void* ctx) {
     PulseApp* app = ctx;
     submenu_reset(app->submenu);
+    /* Clear the loading-screen splash now that the next scene has switched
+     * the view away from PulseViewGame. */
+    game_view_set_splash(app->game_view, NULL);
     /* don't free entries; we only repopulate on enter */
 }
