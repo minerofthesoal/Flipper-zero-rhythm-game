@@ -91,11 +91,17 @@ SONGS = [
 # Note-density per difficulty: ratio of melody beats turned into chart notes.
 # Higher difficulties layer in subdivisions / holds / bursts.
 # ------------------------------------------------------------------
+DIFF_SEED = {'easy': 1, 'normal': 2, 'fun': 3, 'nitro': 4}
+
+
 def chart_for(diff: str, melody: list[str], bpm: int, length_ms: int, level: int):
     beat_ms = 60_000 // bpm
     bars = length_ms // (beat_ms * 4)
     out = [f'diff={level/10:g}']
-    rng = random.Random(hash((diff, level)) & 0xffff_ffff)
+    # Deterministic seed: never use hash() of a string — that's randomised by
+    # PYTHONHASHSEED across processes and would produce different .frgl bytes
+    # on different machines.
+    rng = random.Random(DIFF_SEED[diff] * 100_000 + level * 100 + bpm)
 
     # density profile
     if diff == 'easy':
