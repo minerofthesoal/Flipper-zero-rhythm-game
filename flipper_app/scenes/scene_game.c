@@ -7,6 +7,10 @@ void pulse_scene_Game_on_enter(void* ctx) {
     audio_reset(&app->audio);
     if(app->vgm_enabled) vgm_open(&app->vgm);
 
+    /* Pin the backlight on so the screen never sleeps mid-song. Released in
+     * on_exit. */
+    notification_message_block(app->notifications, &sequence_display_backlight_enforce_on);
+
     const ChartDiff* d = chart_difficulty(app->chart, app->difficulty);
     game_view_start(app->game_view, app->chart, d, &app->judge,
                     &app->anomaly, &app->audio, &app->character,
@@ -37,4 +41,5 @@ void pulse_scene_Game_on_exit(void* ctx) {
     game_view_stop(app->game_view);
     audio_silence(&app->audio);
     if(app->vgm_enabled) vgm_close(&app->vgm);
+    notification_message_block(app->notifications, &sequence_display_backlight_enforce_auto);
 }

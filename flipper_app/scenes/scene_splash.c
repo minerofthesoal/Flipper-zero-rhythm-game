@@ -37,11 +37,15 @@ bool pulse_scene_Splash_on_event(void* ctx, SceneManagerEvent evt) {
         s_splash.ticks++;
         game_view_request_redraw(app->game_view);
         if(s_splash.ticks >= SplashTickHold) {
-            scene_manager_next_scene(app->scene_manager, PulseSceneMenu);
+            /* Replace splash with menu (don't leave splash on the back stack
+             * — otherwise Back from menu pops to splash and loops). */
+            scene_manager_search_and_switch_to_another_scene(app->scene_manager, PulseSceneMenu);
             return true;
         }
     } else if(evt.type == SceneManagerEventTypeBack) {
-        scene_manager_next_scene(app->scene_manager, PulseSceneMenu);
+        /* Skip the splash and go straight to the menu (which becomes the new
+         * top of the stack via search-and-switch, so a later Back exits). */
+        scene_manager_search_and_switch_to_another_scene(app->scene_manager, PulseSceneMenu);
         return true;
     }
     return false;

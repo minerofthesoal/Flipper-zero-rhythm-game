@@ -28,6 +28,12 @@ void pulse_scene_Menu_on_enter(void* ctx) {
 
 bool pulse_scene_Menu_on_event(void* ctx, SceneManagerEvent evt) {
     PulseApp* app = ctx;
+    if(evt.type == SceneManagerEventTypeBack) {
+        /* Top-level menu — back exits the app rather than falling back to
+         * Splash (which would just re-enter Menu and loop forever). */
+        view_dispatcher_stop(app->view_dispatcher);
+        return true;
+    }
     if(evt.type != SceneManagerEventTypeCustom) return false;
     switch(evt.event) {
         case MenuItemPlay:      scene_manager_next_scene(app->scene_manager, PulseSceneSongSelect); return true;

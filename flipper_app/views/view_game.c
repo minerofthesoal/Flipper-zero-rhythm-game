@@ -132,13 +132,30 @@ static void game_draw(Canvas* c, void* model) {
         return;
     }
 
-    /* Compute current chart time */
-    uint32_t t  = now_ms() - m->start_tick_ms + m->offset_ms;
+    /* Compute current chart time using signed math — during the lead-in
+     * t_signed is negative, and an unsigned subtraction would wrap. */
+    int64_t t_signed = (int64_t)now_ms() - (int64_t)m->start_tick_ms
+                       + (int64_t)m->offset_ms;
+    if(t_signed < 0) {
+        /* Lead-in countdown: show "3 / 2 / 1 / GO" big in the middle. */
+        int64_t remain = -t_signed;
+        const char* lbl = "GO";
+        if(remain > 2000)      lbl = "3";
+        else if(remain > 1000) lbl = "2";
+        else if(remain > 250)  lbl = "1";
+        canvas_set_font(c, FontPrimary);
+        canvas_draw_str_aligned(c, 64, 32, AlignCenter, AlignCenter, lbl);
+        return;
+    }
+    uint32_t t  = (uint32_t)t_signed;
     int speed   = m->scroll_speed;
     if(m->active_mod == AnomalyModSpeed) speed = (speed * m->active_mod_arg) / 100;
+    if(speed < 1) speed = 1;
 
-    /* Note rendering window */
-    uint32_t lookahead_ms = (RECEPTOR_Y - 12) * 1000u / (speed * 30);
+    /* Note rendering window. The * 4 factor (was * 30) gives a calmer
+     * scroll: at speed=10 a note takes ~1s to travel from the top to the
+     * receptor, instead of ~140ms. */
+    uint32_t lookahead_ms = (RECEPTOR_Y - 12) * 1000u / (speed * 4);
     /* Walk active notes for the difficulty */
     const Note* notes = m->diff->notes;
     uint32_t n = m->diff->note_count;
@@ -148,14 +165,14 @@ static void game_draw(Canvas* c, void* model) {
         if(nt->time_ms > t + lookahead_ms) break;
 
         int dt   = (int)nt->time_ms - (int)t;
-        int y    = RECEPTOR_Y - (dt * speed * 30) / 1000;
+        int y    = RECEPTOR_Y - (dt * speed * 4) / 1000;
         int lane = lane_apply_mods(nt->lane, m->active_mod);
         int x    = lane_x(lane) + LANE_W / 2;
 
         if(nt->type == NoteFake)  canvas_set_color(c, ColorXOR);
         if(nt->type == NoteHold) {
             int dur = nt->arg;
-            int yy  = y - (dur * speed * 30) / 1000;
+            int yy  = y - (dur * speed * 4) / 1000;
             canvas_draw_box(c, x - 2, yy, 4, y - yy);
         } else if(nt->type == NoteChain) {
             canvas_draw_dot(c, x, y);
@@ -227,11 +244,17 @@ static bool game_input(InputEvent* e, void* ctx) {
             } else {
                 int lane = input_to_lane(e->key);
                 if(lane >= 0) {
-                    if(e->type == InputTypePress) {
+                    int64_t t_signed = (int64_t)now_ms() - (int64_t)m->start_tick_ms
+                                       + (int64_t)m->offset_ms;
+                    /* Ignore presses during the lead-in countdown — there's
+                     * nothing to hit yet, and feeding judge_press a wrapped
+                     * timestamp poisons the score. */
+                    if(t_signed < 0) {
+                        consumed = true;
+                    } else if(e->type == InputTypePress) {
                         m->held[lane] = true;
                         m->held_since[lane] = now_ms();
-                        uint32_t t = now_ms() - m->start_tick_ms + m->offset_ms;
-                        JudgeResult r = judge_press(m->judge, m->diff, lane, t,
+                        JudgeResult r = judge_press(m->judge, m->diff, lane, (uint32_t)t_signed,
                                                     HIT_WINDOW_GREAT, HIT_WINDOW_GOOD,
                                                     m->active_mod);
                         if(r != JudgeNone) {
@@ -245,8 +268,7 @@ static bool game_input(InputEvent* e, void* ctx) {
                         }
                         consumed = true;
                     } else if(e->type == InputTypeRelease) {
-                        uint32_t t = now_ms() - m->start_tick_ms + m->offset_ms;
-                        judge_release(m->judge, m->diff, lane, t,
+                        judge_release(m->judge, m->diff, lane, (uint32_t)t_signed,
                                       HIT_WINDOW_GREAT, HIT_WINDOW_GOOD);
                         m->held[lane] = false;
                         consumed = true;
@@ -265,7 +287,16 @@ static void game_tick(void* ctx) {
     PulseApp* app = v->app;
     with_view_model(v->view, GameModel * m, {
         if(!m->running || m->paused) {} else {
-            uint32_t t = now_ms() - m->start_tick_ms + m->offset_ms;
+            /* Signed math: now < start_tick during the lead-in. Using uint32_t
+             * here would underflow and make every note look "expired", which
+             * insta-failed the song the moment gameplay started. */
+            int64_t t_signed = (int64_t)now_ms() - (int64_t)m->start_tick_ms
+                               + (int64_t)m->offset_ms;
+            if(t_signed < 0) {
+                /* Still in the lead-in countdown — nothing to score yet. */
+                break;
+            }
+            uint32_t t = (uint32_t)t_signed;
 
             /* Anomaly window evaluation */
             anomaly_tick(m->anomaly, m->chart, t, &m->active_mod, &m->active_mod_arg, &m->flash_until_ms);
@@ -280,17 +311,22 @@ static void game_tick(void* ctx) {
                 m->last_result_until_ms = now_ms() + 250;
             }
 
-            /* End of song */
+            /* End of song — pass/fail decided by the Succession Gauge here.
+             * Per design: you can only fail at the endpoint, and only when
+             * the gauge is below 65. */
             if(t >= chart_length(m->chart) + 500) {
                 m->running = false;
-                view_dispatcher_send_custom_event(app->view_dispatcher, PulseEventGameFinished);
-            }
-
-            /* Fail check */
-            if(judge_should_fail(m->judge, m->character)) {
-                m->running = false;
-                m->judge->failed = true;
-                view_dispatcher_send_custom_event(app->view_dispatcher, PulseEventGameFailed);
+                bool no_fail = false;
+                if(m->character) {
+                    const CharacterDef* def = character_def(m->character->id);
+                    if(def && def->no_fail) no_fail = true;
+                }
+                if(!no_fail && m->anomaly->gauge < 65) {
+                    m->judge->failed = true;
+                    view_dispatcher_send_custom_event(app->view_dispatcher, PulseEventGameFailed);
+                } else {
+                    view_dispatcher_send_custom_event(app->view_dispatcher, PulseEventGameFinished);
+                }
             }
 
             /* Mirror onto VGM */
