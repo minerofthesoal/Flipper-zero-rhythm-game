@@ -133,6 +133,26 @@ static bool ls_read_line(LineSource* ls, char* out, size_t cap) {
 
 /* ----------- parser ----------------------------------------------------- */
 
+/* Parse a fixed-point decimal "<int>[.<frac>]" into an integer scaled by
+ * `scale` (e.g. 100 for hundredths). atof is disabled in the firmware API
+ * and we don't want to drag in floating point just to read a BPM. */
+static uint32_t parse_fixed(const char* v, uint32_t scale) {
+    char* end;
+    uint32_t whole = (uint32_t)strtoul(v, &end, 10);
+    uint32_t result = whole * scale;
+    if(*end == '.') {
+        end++;
+        uint32_t frac = 0, mult = scale;
+        while(*end >= '0' && *end <= '9' && mult > 1) {
+            mult /= 10;
+            frac += (uint32_t)(*end - '0') * mult;
+            end++;
+        }
+        result += frac;
+    }
+    return result;
+}
+
 static void parse_meta(Chart* c, char* line) {
     char* eq = strchr(line, '=');
     if(!eq) return;
@@ -141,7 +161,7 @@ static void parse_meta(Chart* c, char* line) {
     const char* v = eq + 1;
     if(strcmp(k, "title")     == 0) copy_str(c->title,   sizeof(c->title),   v);
     else if(strcmp(k, "artist")    == 0) copy_str(c->artist,  sizeof(c->artist),  v);
-    else if(strcmp(k, "bpm")       == 0) c->bpm_x100 = (uint32_t)(atof(v) * 100);
+    else if(strcmp(k, "bpm")       == 0) c->bpm_x100 = parse_fixed(v, 100);
     else if(strcmp(k, "offset")    == 0) c->offset_ms = atoi(v);
     else if(strcmp(k, "length")    == 0) c->length_ms = (uint32_t)atoi(v);
     else if(strcmp(k, "preview")   == 0) c->preview_ms = (uint32_t)atoi(v);
@@ -153,7 +173,7 @@ static uint16_t parse_level(const char* v) {
     /* "5", "5+", "5.5", "11" — store as level*10. "+" is 0.5. */
     char* dot = strchr((char*)v, '.');
     char* plus = strchr((char*)v, '+');
-    if(dot) return (uint16_t)(atof(v) * 10);
+    if(dot) return (uint16_t)parse_fixed(v, 10);
     int n = atoi(v);
     return (uint16_t)(n * 10 + (plus ? 5 : 0));
 }

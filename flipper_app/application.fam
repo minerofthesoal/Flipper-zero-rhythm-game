@@ -14,5 +14,6 @@ App(
         "scenes/*.c",
         "views/*.c",
         "game/*.c",
+        "songs/*.c",
     ],
 )
