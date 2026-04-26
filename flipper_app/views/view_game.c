@@ -85,7 +85,8 @@ static void draw_gauge(Canvas* c, int gauge) {
     canvas_set_color(c, ColorBlack);
     canvas_draw_str(c, gx + 1, gy - 2, "GAUGE");
     canvas_draw_frame(c, gx, gy, gw, gh);
-    if(gauge < 0) gauge = 0; if(gauge > 100) gauge = 100;
+    if(gauge < 0) gauge = 0;
+    if(gauge > 100) gauge = 100;
     int fill = (gauge * (gh - 2)) / 100;
     if(fill > 0) canvas_draw_box(c, gx + 1, gy + (gh - 1) - fill, gw - 2, fill);
     /* Pass-line marker (65%): little notch on the right edge. */
@@ -343,51 +344,53 @@ static void game_tick(void* ctx) {
     GameView* v = ctx;
     PulseApp* app = v->app;
     with_view_model(v->view, GameModel * m, {
-        if(!m->running || m->paused) {} else {
+        /* with_view_model expands inline (no enclosing loop), so we can't use
+         * `break` — guard with a positive condition instead. */
+        if(m->running && !m->paused) {
             /* Signed math: now < start_tick during the lead-in. Using uint32_t
              * here would underflow and make every note look "expired", which
              * insta-failed the song the moment gameplay started. */
             int64_t t_signed = (int64_t)now_ms() - (int64_t)m->start_tick_ms
                                + (int64_t)m->offset_ms;
-            if(t_signed < 0) {
-                /* Still in the lead-in countdown — nothing to score yet. */
-                break;
-            }
-            uint32_t t = (uint32_t)t_signed;
+            if(t_signed >= 0) {
+                uint32_t t = (uint32_t)t_signed;
 
-            /* Anomaly window evaluation */
-            anomaly_tick(m->anomaly, m->chart, t, &m->active_mod, &m->active_mod_arg, &m->flash_until_ms);
+                /* Anomaly window evaluation */
+                anomaly_tick(m->anomaly, m->chart, t, &m->active_mod,
+                             &m->active_mod_arg, &m->flash_until_ms);
 
-            /* Drive audio scheduler */
-            audio_tick(m->audio, m->chart, t);
+                /* Drive audio scheduler */
+                audio_tick(m->audio, m->chart, t);
 
-            /* Auto-miss expired notes */
-            uint32_t expired = judge_advance(m->judge, m->diff, t, HIT_WINDOW_MISS, m->anomaly, m->character);
-            if(expired) {
-                m->last_result = JudgeMiss;
-                m->last_result_until_ms = now_ms() + 250;
-            }
-
-            /* End of song — pass/fail decided by the Succession Gauge here.
-             * Per design: you can only fail at the endpoint, and only when
-             * the gauge is below 65. */
-            if(t >= chart_length(m->chart) + 500) {
-                m->running = false;
-                bool no_fail = false;
-                if(m->character) {
-                    const CharacterDef* def = character_def(m->character->id);
-                    if(def && def->no_fail) no_fail = true;
+                /* Auto-miss expired notes */
+                uint32_t expired = judge_advance(m->judge, m->diff, t,
+                                                 HIT_WINDOW_MISS, m->anomaly, m->character);
+                if(expired) {
+                    m->last_result = JudgeMiss;
+                    m->last_result_until_ms = now_ms() + 250;
                 }
-                if(!no_fail && m->anomaly->gauge < 65) {
-                    m->judge->failed = true;
-                    view_dispatcher_send_custom_event(app->view_dispatcher, PulseEventGameFailed);
-                } else {
-                    view_dispatcher_send_custom_event(app->view_dispatcher, PulseEventGameFinished);
-                }
-            }
 
-            /* Mirror onto VGM */
-            if(m->vgm) vgm_render(m->vgm, m, t);
+                /* End of song — pass/fail decided by the Succession Gauge
+                 * here. Per design: you can only fail at the endpoint, and
+                 * only when the gauge is below 65. */
+                if(t >= chart_length(m->chart) + 500) {
+                    m->running = false;
+                    bool no_fail = false;
+                    if(m->character) {
+                        const CharacterDef* def = character_def(m->character->id);
+                        if(def && def->no_fail) no_fail = true;
+                    }
+                    if(!no_fail && m->anomaly->gauge < 65) {
+                        m->judge->failed = true;
+                        view_dispatcher_send_custom_event(app->view_dispatcher, PulseEventGameFailed);
+                    } else {
+                        view_dispatcher_send_custom_event(app->view_dispatcher, PulseEventGameFinished);
+                    }
+                }
+
+                /* Mirror onto VGM */
+                if(m->vgm) vgm_render(m->vgm, m, t);
+            }
         }
     }, true);
 }
